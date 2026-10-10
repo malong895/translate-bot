@@ -32,11 +32,16 @@ CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 
 COLS = 3
 
-with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-    config = json.load(f)
+if os.path.exists(CONFIG_PATH):
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        config = json.load(f)
+else:
+    config = {}
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN") or config.get("bot_token")
 MYMEMORY_EMAIL = os.environ.get("MYMEMORY_EMAIL") or config.get("mymemory_email") or None
+if not BOT_TOKEN:
+    raise SystemExit("BOT_TOKEN is not set (env var or config.json)")
 
 # pending[(chat_id, user_id)] = {"selected": set(codes)}
 pending = {}
@@ -45,8 +50,11 @@ app = Flask(__name__)
 
 
 def save_config():
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2, ensure_ascii=False)
+    try:
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+    except OSError as exc:  # noqa: BLE001
+        logger.warning("Could not persist config: %s", exc)
 
 
 def chat_cfg(chat_id):
