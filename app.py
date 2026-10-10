@@ -290,8 +290,16 @@ WEBHOOK_BASE = (os.environ.get("WEBHOOK_URL") or os.environ.get("RENDER_EXTERNAL
 
 
 async def _init_app():
-    await application.initialize()
-    await application.start()
+    try:
+        await application.initialize()
+        print("[xlate] init ok", flush=True)
+        await application.start()
+        print(f"[xlate] start ok running={getattr(application, 'running', None)}", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[xlate] _init_app FAILED: {exc!r}", flush=True)
+        import traceback
+
+        traceback.print_exc()
     if WEBHOOK_BASE:
         url = f"{WEBHOOK_BASE}/{BOT_TOKEN}"
         try:
@@ -299,6 +307,17 @@ async def _init_app():
             logger.info("Webhook registered: %s", url)
         except Exception as exc:  # noqa: BLE001
             logger.error("set_webhook failed: %s", exc)
+    async def _heartbeat():
+        n = 0
+        while True:
+            await asyncio.sleep(5)
+            n += 1
+            print(
+                f"[xlate] hb{n} loop_tid={getattr(loop, '_thread_id', None)} at={threading.get_ident()}",
+                flush=True,
+            )
+
+    loop.create_task(_heartbeat())
 
 
 loop = asyncio.new_event_loop()
@@ -358,6 +377,8 @@ def debug_config():
 def debug_loop():
     info = {
         "loop_running": loop.is_running(),
+        "loop_thread_id": getattr(loop, "_thread_id", None),
+        "reporting_thread_id": threading.get_ident(),
         "app_running": getattr(application, "running", None),
         "queue_size": application.update_queue.qsize() if application.update_queue else None,
     }
