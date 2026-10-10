@@ -32,11 +32,21 @@ CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 
 COLS = 3
 
-if os.path.exists(CONFIG_PATH):
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        config = json.load(f)
-else:
-    config = {}
+SEED_PATH = os.path.join(BASE_DIR, "seed_config.json")
+
+
+def _load_config():
+    for path in (CONFIG_PATH, SEED_PATH):
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as fh:
+                    return json.load(fh)
+            except (OSError, ValueError):
+                continue
+    return {}
+
+
+config = _load_config()
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN") or config.get("bot_token")
 MYMEMORY_EMAIL = os.environ.get("MYMEMORY_EMAIL") or config.get("mymemory_email") or None
