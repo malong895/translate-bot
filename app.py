@@ -320,6 +320,19 @@ def webhook():
                 f"loop_running={loop.is_running()}",
                 flush=True,
             )
+            event = threading.Event()
+
+            def _poke():
+                print("[xlate] POKE executed in loop thread", flush=True)
+                event.set()
+
+            loop.call_soon_threadsafe(_poke)
+            ran = event.wait(3)
+            print(
+                f"[xlate] loop callback ran: {ran} "
+                f"qsize_after_poke={application.update_queue.qsize()}",
+                flush=True,
+            )
             loop.call_soon_threadsafe(application.update_queue.put_nowait, update)
             return Response("ok", status=200)
         except Exception as exc:
@@ -337,6 +350,30 @@ def healthz():
 def debug_config():
     return Response(
         json.dumps(config.get("chat_configs", {}), ensure_ascii=False),
+        mimetype="application/json",
+    )
+
+
+@app.route("/debug/loop", methods=["GET"])
+def debug_loop():
+    info = {
+        "loop_running": loop.is_running(),
+        "app_running": getattr(application, "running", None),
+        "queue_size": application.update_queue.qsize() if application.update_queue else None,
+    }
+    task = getattr(application, "_Application__update_fetcher_task", None)
+    if task is None:
+        info["fetcher_task"] = "missing"
+    else:
+        info["fetcher_task"] = {
+            "done": task.done(),
+            "cancelled": task.cancelled(),
+        }
+        if task.done() and not task.cancelled():
+            exc = task.exception()
+            info["fetcher_task"]["exception"] = repr(exc) if exc else None
+    return Response(
+        json.dumps(info, ensure_ascii=False),
         mimetype="application/json",
     )
 
