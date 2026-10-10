@@ -317,5 +317,13 @@ def healthz():
     return Response("ok", status=200)
 
 
+@app.route("/debug/config", methods=["GET"])
+def debug_config():
+    return Response(
+        json.dumps(config.get("chat_configs", {}), ensure_ascii=False),
+        mimetype="application/json",
+    )
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
