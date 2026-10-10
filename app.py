@@ -299,6 +299,15 @@ asyncio.set_event_loop(loop)
 loop.create_task(_init_app())
 thread = threading.Thread(target=loop.run_forever, daemon=True)
 thread.start()
+print("[xlate] background event loop thread started", flush=True)
+
+
+async def _process_update(update):
+    try:
+        print(f"[xlate] handling update {update.update_id}", flush=True)
+        await application.process_update(update)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[xlate] process error {exc!r}", flush=True)
 
 
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
@@ -307,7 +316,8 @@ def webhook():
     if request.method == "POST":
         try:
             update = Update.de_json(request.get_json(force=True), application.bot)
-            loop.call_soon_threadsafe(asyncio.create_task, application.process_update(update))
+            print(f"[xlate] webhook hit update={update.update_id}", flush=True)
+            asyncio.run_coroutine_threadsafe(_process_update(update), loop)
             return Response("ok", status=200)
         except Exception as exc:
             logger.error("Webhook error: %s", exc)
