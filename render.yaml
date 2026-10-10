@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: translatebot
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements-webhook.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
+    healthCheckPath: /healthz
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: MYMEMORY_EMAIL
+        sync: false
+      - key: PYTHONUNBUFFERED
+        value: "1"

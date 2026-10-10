@@ -258,9 +258,19 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_messa
 application.add_error_handler(error_handler)
 
 
+WEBHOOK_BASE = (os.environ.get("WEBHOOK_URL") or os.environ.get("RENDER_EXTERNAL_URL") or "").rstrip("/")
+
+
 async def _init_app():
     await application.initialize()
     await application.start()
+    if WEBHOOK_BASE:
+        url = f"{WEBHOOK_BASE}/{BOT_TOKEN}"
+        try:
+            await application.bot.set_webhook(url=url, drop_pending_updates=True)
+            logger.info("Webhook registered: %s", url)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("set_webhook failed: %s", exc)
 
 
 loop = asyncio.new_event_loop()

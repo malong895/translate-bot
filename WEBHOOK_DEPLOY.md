@@ -1,53 +1,59 @@
-# Translation Bot - Webhook Deployment
+# Translation Bot - 24/7 Cloud Deployment
 
-This bot runs with webhooks (Telegram pushes updates to your HTTPS URL), perfect for 24/7 serverless hosting.
+Two free ways to keep the bot online even when your PC is off.
 
-## Files
+The bot's `app.py` (webhook server) **auto-registers the Telegram webhook on
+startup** using the platform's public URL, so no manual webhook step is needed.
 
-- `app.py` - Flask webhook server (replaces `bot.py` for serverless)
-- `bot.py` - Original long-polling version (for local PC)
-- `translator.py` - Translation logic (unchanged)
-- `config.json` - Bot token & settings
-- `requirements-webhook.txt` - Dependencies for webhook hosting
-- `Procfile` - For Railway/Render
-- `package.json` - For some Node-based platforms (not needed)
+- `app.py` - Flask webhook server (cloud)
+- `bot.py` - Long-polling version (local PC)
+- `service_runner.py` - Local 24/7 supervisor (auto-restart, single instance)
+- `render.yaml` - One-click Render blueprint
+- `.github/workflows/keep-alive.yml` - Pings the Render app so the free tier
+  never sleeps
 
-## Deploy to Railway (free, easy, always-on)
+---
 
-1. Push this folder to GitHub
-2. Go to [railway.app](https://railway.app) → Login with GitHub
-3. New Project → Deploy from GitHub repo → Select this repo
-4. Add environment variable: `BOT_TOKEN` = `<BOT_TOKEN>`
-5. Railway will auto-detect and deploy. It gives you a URL like `https://translate-bot-production.up.railway.app/`
-6. Set webhook: Open browser with `https://api.telegram.org/bot<BOT_TOKEN>/setWebhook?url=https://YOUR-RAILWAY-URL/YOUR-TOKEN` (or just root; app.py accepts both)
-7. Done! Bot runs 24/7
+## Option 1 - Render (free, no card) - RECOMMENDED
 
-## Deploy to Koyeb (free, always-on)
+Same platform your `itbot` already uses 24/7.
 
-1. Push to GitHub
-2. Go to [koyeb.com](https://www.koyeb.com) → Create app from GitHub
-3. Build with Python, start: `gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4`
-4. Add env var `BOT_TOKEN`
-5. Get public URL, set webhook as above
+1. Go to https://dashboard.render.com → **New** → **Blueprint**
+2. Connect the GitHub repo **malong895/translate-bot** (private)
+3. Render reads `render.yaml` and creates the `translatebot` web service
+4. Set the env var **BOT_TOKEN** = your BotFather token, then **Apply**
+5. Wait for "Live", copy the URL (e.g. `https://translatebot.onrender.com`)
+6. Add it as a GitHub repo secret named **RENDER_URL** (Settings → Secrets →
+   Actions) so the keep-alive workflow keeps it awake
+7. Done - runs 24/7 with your PC off
 
-## Deploy to Cloudflare Workers (free, webhook-only)
+## Option 2 - Oracle Cloud Always Free VPS ($0 forever)
 
-Workers can't run Flask directly. Need to use a webhook adapter (e.g. `python-telegram-bot` with webhooks via `fetch`). Simpler: use Railway/Koyeb.
+If the Oracle instance is created, deploy with one command:
 
-## Set webhook manually
-
-After getting your public HTTPS URL (e.g. `https://your-app.railway.app`), run:
-```text
-https://api.telegram.org/bot<BOT_TOKEN>/setWebhook?url=https://your-app.railway.app/<BOT_TOKEN>
+```powershell
+powershell -ExecutionPolicy Bypass -File .\deploy-translatebot-to-vps.ps1 -VpsIp THE_IP
 ```
 
-Check: `https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo`
+This installs `translatebot.service` (systemd, auto-restart) and stops the
+local copy so you don't get double replies.
 
-## Local test (optional)
+## Option 3 - Railway / Koyeb (free tiers)
 
-```bash
-set PORT=5000
-python app.py
-```
+- New project → Deploy from GitHub repo `malong895/translate-bot`
+- Build: `pip install -r requirements-webhook.txt`
+- Start: `gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120`
+- Set env var `BOT_TOKEN`
 
-Then use ngrok to expose: `ngrok http 5000` and set webhook to ngrok URL.
+---
+
+## Important rules
+
+- The bot must NOT run on the PC and in the cloud at the same time (double
+  replies). After cloud deploy: stop the local task
+  (`Stop-ScheduledTask -TaskName "TranslateBot"`).
+- Never commit `config.json` (contains the token); it is git-ignored.
+
+## Manual webhook check
+
+`https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo`
