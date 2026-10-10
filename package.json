@@ -1,0 +1,16 @@
+{
+  "name": "translate-bot",
+  "version": "1.0.0",
+  "description": "Telegram translation bot with webhooks",
+  "main": "app.py",
+  "scripts": {
+    "start": "gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120"
+  },
+  "dependencies": {
+    "python-telegram-bot": "^22.8",
+    "requests": "^2.31.0",
+    "langdetect": "^1.0.9",
+    "Flask": "^3.1.0",
+    "gunicorn": "^23.0.0"
+  }
+}
