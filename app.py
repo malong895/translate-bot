@@ -240,6 +240,8 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not text:
         return
 
+    print(f"[xlate] in chat={msg.chat_id} text={text!r}", flush=True)
+
     a, b = langs[0], langs[1]
     source = translator.choose_source(text, a, b)
     if source is None:
@@ -255,6 +257,7 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error("Translation error in chat %s: %s", msg.chat_id, exc)
         return
 
+    print(f"[xlate] {source}->{target}: {translated!r}", flush=True)
     if translated and translated.strip() and translated.strip() != text:
         await msg.reply_text(translated)
 
