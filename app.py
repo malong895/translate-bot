@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import queue
 import sys
 import threading
 
@@ -62,6 +63,10 @@ if not BOT_TOKEN:
 
 # pending[(chat_id, user_id)] = {"selected": set(codes)}
 pending = {}
+
+# Thread-safe inbox: Flask request threads put Updates here;
+# the asyncio loop drains it and processes them in-loop.
+inbox = queue.Queue()
 
 app = Flask(__name__)
 
@@ -307,17 +312,19 @@ async def _init_app():
             logger.info("Webhook registered: %s", url)
         except Exception as exc:  # noqa: BLE001
             logger.error("set_webhook failed: %s", exc)
-    async def _heartbeat():
-        n = 0
-        while True:
-            await asyncio.sleep(5)
-            n += 1
-            print(
-                f"[xlate] hb{n} loop_tid={getattr(loop, '_thread_id', None)} at={threading.get_ident()}",
-                flush=True,
-            )
 
-    loop.create_task(_heartbeat())
+    async def _drain():
+        while True:
+            try:
+                while not inbox.empty():
+                    upd = inbox.get_nowait()
+                    print(f"[xlate] loop picked up update {getattr(upd, 'update_id', '?')}", flush=True)
+                    await application.process_update(upd)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[xlate] process error {exc!r}", flush=True)
+            await asyncio.sleep(0.3)
+
+    loop.create_task(_drain())
 
 
 loop = asyncio.new_event_loop()
@@ -334,25 +341,7 @@ def webhook():
     if request.method == "POST":
         try:
             update = Update.de_json(request.get_json(force=True), application.bot)
-            print(
-                f"[xlate] webhook hit update={update.update_id} "
-                f"loop_running={loop.is_running()}",
-                flush=True,
-            )
-            event = threading.Event()
-
-            def _poke():
-                print("[xlate] POKE executed in loop thread", flush=True)
-                event.set()
-
-            loop.call_soon_threadsafe(_poke)
-            ran = event.wait(3)
-            print(
-                f"[xlate] loop callback ran: {ran} "
-                f"qsize_after_poke={application.update_queue.qsize()}",
-                flush=True,
-            )
-            loop.call_soon_threadsafe(application.update_queue.put_nowait, update)
+            inbox.put(update)
             return Response("ok", status=200)
         except Exception as exc:
             logger.error("Webhook error: %s", exc)
