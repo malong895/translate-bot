@@ -399,4 +399,6 @@ def translate(text, source, target, email=None):
             return " ".join(_google(p, source, target) or "" for p in pieces)
         except Exception as google_err:  # noqa: BLE001
             logger.error("All translation backends failed: %s / %s", mymemory_err, google_err)
-            raise RuntimeError("translation service unavailable") from google_err
+            raise RuntimeError(
+                f"translation service unavailable (MyMemory: {mymemory_err}; Google: {google_err})"
+            ) from google_err

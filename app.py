@@ -354,6 +354,32 @@ def healthz():
     return Response("ok", status=200)
 
 
+@app.route("/debug/up", methods=["GET"])
+def debug_up():
+    import requests as req
+    import time as _time
+
+    probes = {
+        "mymemory": ("GET", "https://api.mymemory.translated.net/get", {"q": "hello", "langpair": "en|zh-CN"}, None),
+        "edge-auth": ("POST", "https://edge.microsoft.com/translate/auth", None, None),
+        "google-gtx": ("GET", "https://translate.googleapis.com/translate_a/single", {"client": "gtx", "sl": "en", "tl": "zh-CN", "dt": "t", "q": "hello"}, None),
+        "libre": ("GET", "https://libretranslate.de/translate", None, None),
+    }
+    out = {}
+    for name, (meth, url, params, _body) in probes.items():
+        t0 = _time.time()
+        try:
+            if meth == "GET":
+                r = req.get(url, params=params, timeout=15)
+            else:
+                r = req.post(url, timeout=15)
+            ms = int((_time.time() - t0) * 1000)
+            out[name] = {"http": r.status_code, "ms": ms, "len": len(r.content), "snip": r.text[:60]}
+        except Exception as exc:  # noqa: BLE001
+            out[name] = {"error": repr(exc)}
+    return Response(json.dumps(out, ensure_ascii=False), mimetype="application/json")
+
+
 @app.route("/debug/config", methods=["GET"])
 def debug_config():
     return Response(
