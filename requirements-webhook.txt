@@ -3,3 +3,4 @@ gunicorn==23.0.0
 python-telegram-bot==22.8
 requests>=2.31
 langdetect>=1.0.9
+deep-translator>=1.9.1

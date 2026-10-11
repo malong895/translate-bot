@@ -5,6 +5,7 @@ Primary backend is MyMemory (free, no API key). If it fails and the optional
 """
 
 import logging
+import os
 import re
 import time
 
@@ -25,7 +26,34 @@ except Exception:  # pragma: no cover - optional fallback
 logger = logging.getLogger(__name__)
 
 MYMEMORY_URL = "https://api.mymemory.translated.net/get"
+
+# DeepL API key (Free keys end in ":fx"). Set via env or config.
+DEEPL_KEY = os.environ.get("DEEPL_API_KEY") or None
+DEEPL_FREE_URL = "https://api-free.deepl.com/v2/translate"
+DEEPL_PRO_URL = "https://api.deepl.com/v2/translate"
+
 _session = requests.Session()
+
+# DeepL supports a fixed set of languages with special target codes.
+_DEEPL_SOURCE = {
+    "zh-CN": "ZH", "zh-TW": "ZH", "zh": "ZH",
+    "en": "EN", "pt": "PT", "nb": "NB", "no": "NB",
+}
+_DEEPL_TARGET = {
+    "zh-CN": "ZH-HANS", "zh-TW": "ZH-HANT", "zh": "ZH-HANS",
+    "en": "EN-US", "pt": "PT-PT", "nb": "NB", "no": "NB",
+}
+_DEEPL_LANGS = {
+    "bg", "cs", "da", "de", "el", "en", "es", "et", "fi", "fr", "hu", "id",
+    "it", "ja", "ko", "lt", "lv", "nb", "no", "nl", "pl", "pt", "ro", "ru",
+    "sk", "sl", "sv", "tr", "uk", "zh", "zh-CN", "zh-TW",
+}
+
+
+def _deepl_code(code, table):
+    if code in table:
+        return table[code]
+    return code.upper() if code else code
 
 MAX_CHUNK_BYTES = 450
 
@@ -359,6 +387,42 @@ def _split_chunks(text, max_bytes=MAX_CHUNK_BYTES):
     return chunks
 
 
+def _deepl_chunk(chunk, source, target):
+    key = DEEPL_KEY
+    if not key:
+        raise RuntimeError("no DeepL key")
+    if source not in _DEEPL_LANGS or target not in _DEEPL_LANGS:
+        raise RuntimeError(f"DeepL does not support {source}->{target}")
+    url = DEEPL_FREE_URL if key.endswith(":fx") else DEEPL_PRO_URL
+    data = {
+        "text": chunk,
+        "target_lang": _deepl_code(target, _DEEPL_TARGET),
+    }
+    if source:
+        data["source_lang"] = _deepl_code(source, _DEEPL_SOURCE)
+    last_err = None
+    for attempt in range(3):
+        try:
+            resp = _session.post(
+                url,
+                data=data,
+                headers={"Authorization": f"DeepL-Auth-Key {key}"},
+                timeout=25,
+            )
+            if resp.status_code == 456:
+                raise RuntimeError("DeepL quota exceeded")
+            resp.raise_for_status()
+            js = resp.json()
+            text = (js.get("translations") or [{}])[0].get("text")
+            if text:
+                return text
+            raise RuntimeError("empty translation")
+        except Exception as exc:  # noqa: BLE001
+            last_err = exc
+            time.sleep(0.6 * (attempt + 1))
+    raise RuntimeError(f"DeepL failed: {last_err}")
+
+
 def _translate_chunk(chunk, source, target, email=None):
     params = {"q": chunk, "langpair": f"{source}|{target}"}
     if email:
@@ -391,6 +455,13 @@ def _google(text, source, target):
 def translate(text, source, target, email=None):
     """Translate ``text`` from ``source`` to ``target`` language code."""
     pieces = _split_chunks(text)
+
+    if DEEPL_KEY:
+        try:
+            return " ".join(_deepl_chunk(p, source, target) for p in pieces)
+        except Exception as deepl_err:  # noqa: BLE001
+            logger.warning("DeepL failed (%s), trying MyMemory", deepl_err)
+
     try:
         return " ".join(_translate_chunk(p, source, target, email) for p in pieces)
     except Exception as mymemory_err:  # noqa: BLE001

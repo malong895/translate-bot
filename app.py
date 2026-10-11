@@ -58,6 +58,9 @@ config = _load_config()
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN") or config.get("bot_token")
 MYMEMORY_EMAIL = os.environ.get("MYMEMORY_EMAIL") or config.get("mymemory_email") or None
+DEEPL_API_KEY = os.environ.get("DEEPL_API_KEY") or config.get("deepl_api_key") or None
+if DEEPL_API_KEY:
+    translator.DEEPL_KEY = DEEPL_API_KEY
 if not BOT_TOKEN:
     raise SystemExit("BOT_TOKEN is not set (env var or config.json)")
 
@@ -366,6 +369,20 @@ def debug_up():
         "libre": ("GET", "https://libretranslate.de/translate", None, None),
     }
     out = {}
+    out["deepl_key_set"] = bool(translator.DEEPL_KEY)
+    if translator.DEEPL_KEY:
+        base = "https://api-free.deepl.com" if translator.DEEPL_KEY.endswith(":fx") else "https://api.deepl.com"
+        try:
+            import time as _t
+            t0 = _t.time()
+            ru = req.post(
+                base + "/v2/usage",
+                headers={"Authorization": f"DeepL-Auth-Key {translator.DEEPL_KEY}"},
+                timeout=15,
+            )
+            out["deepl-usage"] = {"http": ru.status_code, "ms": int((_t.time() - t0) * 1000), "body": ru.text[:120]}
+        except Exception as exc:  # noqa: BLE001
+            out["deepl-usage"] = {"error": repr(exc)}
     for name, (meth, url, params, _body) in probes.items():
         t0 = _time.time()
         try:
