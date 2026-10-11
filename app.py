@@ -360,7 +360,7 @@ def debug_up():
     import time as _time
 
     probes = {
-        "mymemory": ("GET", "https://api.mymemory.translated.net/get", {"q": "hello", "langpair": "en|zh-CN"}, None),
+        "mymemory": ("GET", "https://api.mymemory.translated.net/get", {"q": "hello", "langpair": "en|zh-CN", "de": MYMEMORY_EMAIL or ""}, None),
         "edge-auth": ("POST", "https://edge.microsoft.com/translate/auth", None, None),
         "google-gtx": ("GET", "https://translate.googleapis.com/translate_a/single", {"client": "gtx", "sl": "en", "tl": "zh-CN", "dt": "t", "q": "hello"}, None),
         "libre": ("GET", "https://libretranslate.de/translate", None, None),
@@ -377,6 +377,10 @@ def debug_up():
             out[name] = {"http": r.status_code, "ms": ms, "len": len(r.content), "snip": r.text[:60]}
         except Exception as exc:  # noqa: BLE001
             out[name] = {"error": repr(exc)}
+    try:
+        out["translator-translate"] = translator.translate("hello", "en", "zh-CN", MYMEMORY_EMAIL)
+    except Exception as exc:  # noqa: BLE001
+        out["translator-translate"] = {"error": repr(exc)}
     return Response(json.dumps(out, ensure_ascii=False), mimetype="application/json")
 
 
