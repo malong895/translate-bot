@@ -1,6 +1,7 @@
 # Translation bot - Flask webhook version for serverless hosting
 
 import asyncio
+import collections
 import json
 import logging
 import os
@@ -273,7 +274,7 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     print(f"[xlate] {source}->{target}: {translated!r}", flush=True)
-    if translated and translated.strip() and translated.strip() != text:
+    if translated and translated.strip():
         await msg.reply_text(translated)
 
 
@@ -311,16 +312,27 @@ async def _init_app():
     if WEBHOOK_BASE:
         url = f"{WEBHOOK_BASE}/{BOT_TOKEN}"
         try:
-            await application.bot.set_webhook(url=url, drop_pending_updates=True)
+            await application.bot.set_webhook(url=url)
             logger.info("Webhook registered: %s", url)
         except Exception as exc:  # noqa: BLE001
             logger.error("set_webhook failed: %s", exc)
+
+    seen = set()
+    seen_order = collections.deque()
 
     async def _drain():
         while True:
             try:
                 while not inbox.empty():
                     upd = inbox.get_nowait()
+                    uid = getattr(upd, "update_id", None)
+                    if uid is not None:
+                        if uid in seen:
+                            continue
+                        seen.add(uid)
+                        seen_order.append(uid)
+                        if len(seen_order) > 3000:
+                            seen.discard(seen_order.popleft())
                     print(f"[xlate] loop picked up update {getattr(upd, 'update_id', '?')}", flush=True)
                     await application.process_update(upd)
             except Exception as exc:  # noqa: BLE001
