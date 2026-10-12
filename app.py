@@ -369,6 +369,24 @@ def healthz():
     return Response("ok", status=200)
 
 
+def _self_ping():
+    if not WEBHOOK_BASE:
+        return
+    import time as _time
+    import urllib.request
+
+    while True:
+        try:
+            urllib.request.urlopen(f"{WEBHOOK_BASE}/healthz", timeout=30).read()
+            print("[keepalive] self-ping ok", flush=True)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[keepalive] self-ping error {exc!r}", flush=True)
+        _time.sleep(600)
+
+
+threading.Thread(target=_self_ping, daemon=True).start()
+
+
 @app.route("/debug/up", methods=["GET"])
 def debug_up():
     import requests as req
